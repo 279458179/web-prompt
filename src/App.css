@@ -1,5 +1,10 @@
 .App {
-  text-align: center;
+  min-height: 100vh;
+  padding: 40px 20px;
+  background: linear-gradient(135deg, #f5f7fa 0%, #e4e8eb 100%);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
 }
 
 .App-logo {
@@ -35,4 +40,137 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+.ant-card {
+  width: 100%;
+  max-width: 800px;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border: none;
+  transition: all 0.3s ease;
+}
+
+.ant-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
+}
+
+.ant-card-head {
+  border-bottom: none;
+  padding: 24px 24px 0;
+}
+
+.ant-card-head-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: #1a1a1a;
+  text-align: center;
+}
+
+.ant-card-body {
+  padding: 24px;
+}
+
+.ant-upload {
+  width: 100%;
+  margin-bottom: 24px;
+}
+
+.ant-upload-drag {
+  border: 2px dashed #e8e8e8;
+  border-radius: 12px;
+  background: #fafafa;
+  transition: all 0.3s ease;
+}
+
+.ant-upload-drag:hover {
+  border-color: #1890ff;
+  background: #f0f7ff;
+}
+
+.ant-btn {
+  height: 44px;
+  padding: 0 24px;
+  font-size: 16px;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.ant-btn-primary {
+  background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%);
+  border: none;
+  box-shadow: 0 2px 8px rgba(24, 144, 255, 0.25);
+}
+
+.ant-btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.35);
+}
+
+.ant-btn-primary:active {
+  transform: translateY(0);
+}
+
+.ant-upload-list {
+  margin-top: 16px;
+}
+
+.ant-upload-list-item {
+  border-radius: 8px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.ant-upload-list-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.ant-spin {
+  margin: 32px 0;
+}
+
+.ant-spin-dot {
+  font-size: 32px;
+}
+
+.prompt-container {
+  margin-top: 24px;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 12px;
+  border: 1px solid #e8e8e8;
+}
+
+.prompt-container h3 {
+  color: #1a1a1a;
+  font-size: 18px;
+  margin-bottom: 16px;
+  font-weight: 500;
+}
+
+.ant-input-textarea {
+  border-radius: 8px;
+  background: white;
+}
+
+.ant-input-textarea textarea {
+  font-size: 16px;
+  line-height: 1.6;
+  padding: 12px;
+}
+
+.upload-preview {
+  margin-top: 16px;
+  text-align: center;
+}
+
+.upload-preview img {
+  max-width: 100%;
+  max-height: 300px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
