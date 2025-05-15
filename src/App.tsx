@@ -27,12 +27,16 @@ const theme = {
   border: '#E2E8F0'        // 边框颜色
 };
 
+const GEMINI_API_KEY = 'AIzaSyBKiMkI3pwitppnnKorCxpxllUj2zsr-VY';
+const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+
 function App() {
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   const [loading, setLoading] = useState(false);
   const [prompt, setPrompt] = useState('');
   const [previewUrl, setPreviewUrl] = useState<string>('');
-  const [copied, setCopied] = useState(false);
+  const [copiedEn, setCopiedEn] = useState(false);
+  const [copiedZh, setCopiedZh] = useState(false);
 
   const compressImage = (file: File): Promise<File> => {
     return new Promise((resolve, reject) => {
@@ -93,63 +97,41 @@ function App() {
       const compressedFile = await compressImage(fileList[0].originFileObj as File);
       const base64Image = await fileToBase64(compressedFile);
 
-      const response = await axios({
-        method: 'post',
-        url: 'https://api.deepseek.com/v1/chat/completions',
-        headers: {
-          'Authorization': 'Bearer sk-e6b16dbf958f452a919442945ea2059f',
-          'Content-Type': 'application/json'
-        },
-        data: {
-          model: 'deepseek-chat',
-          messages: [
-            {
-              role: 'system',
-              content: `你是一个专业的图片分析专家，擅长分析图片并生成能够重现该图片的提示词。请用中英文两种语言输出提示词，且每一项都要有中英文对照。输出格式如下：\n英文提示词: ...\n中文提示词: ...\n请确保生成的提示词包含以下要素：1. 主体描述 2. 场景描述 3. 风格描述 4. 光照效果 5. 构图要素 6. 画面质量。每个要素都要有中英文描述，顺序一致，内容完整，适合直接用于Stable Diffusion等AI绘画。不要输出多余的解释和说明。`
-            },
-            {
-              role: 'user',
-              content: `请分析这张图片并生成能够生成这张图片的提示词。图片数据：${base64Image}`
-            }
-          ],
-          temperature: 0.7,
-          max_tokens: 800,
-          stream: false
-        }
+      // Gemini 多模态API请求
+      const promptText = `你是一个专业的图片分析专家，擅长分析图片并生成能够重现该图片的提示词。请用中英文两种语言输出提示词，且每一项都要有中英文对照。输出格式如下：\n英文提示词: ...\n中文提示词: ...\n请确保生成的提示词包含以下要素：1. 主体描述 2. 场景描述 3. 风格描述 4. 光照效果 5. 构图要素 6. 画面质量。每个要素都要有中英文描述，顺序一致，内容完整，适合直接用于Stable Diffusion等AI绘画。不要输出多余的解释和说明。`;
+
+      const response = await axios.post(GEMINI_API_URL, {
+        contents: [
+          {
+            parts: [
+              { text: promptText },
+              {
+                inline_data: {
+                  mime_type: 'image/jpeg',
+                  data: base64Image
+                }
+              }
+            ]
+          }
+        ]
       });
 
-      if (response.data && response.data.choices && response.data.choices[0]) {
-        const rawPrompt = response.data.choices[0].message.content;
-        const formattedPrompt = formatPrompt(rawPrompt);
-        setPrompt(formattedPrompt);
+      // 解析Gemini返回内容
+      const result = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (result) {
+        setPrompt(formatPrompt(result));
         message.success('提示词生成成功！');
       } else {
-        throw new Error('API响应格式不正确');
+        throw new Error('Gemini API响应格式不正确');
       }
     } catch (error: any) {
       console.error('详细错误信息:', error);
       if (error.response) {
-        console.error('错误响应数据:', error.response.data);
-        console.error('错误状态码:', error.response.status);
-        console.error('完整错误响应:', JSON.stringify(error.response.data, null, 2));
-        
         const errorMessage = error.response.data?.error?.message || '未知错误';
         message.error(`生成提示词失败: ${errorMessage}`);
-        
-        if (error.response.status === 401) {
-          message.error('API密钥无效或已过期，请更新API密钥');
-        }
-        else if (error.response.status === 400) {
-          message.error('请求格式错误，请检查图片格式和大小');
-          if (error.response.data?.error?.message) {
-            message.error(`具体错误: ${error.response.data.error.message}`);
-          }
-        }
       } else if (error.request) {
-        console.error('未收到响应:', error.request);
         message.error('服务器未响应，请检查网络连接');
       } else {
-        console.error('错误信息:', error.message);
         message.error(`生成提示词失败: ${error.message}`);
       }
     } finally {
@@ -184,11 +166,57 @@ function App() {
     }
   };
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(prompt);
-    setCopied(true);
-    message.success('提示词已复制到剪贴板');
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopyEn = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedEn(true);
+    message.success('英文提示词已复制');
+    setTimeout(() => setCopiedEn(false), 2000);
+  };
+
+  const handleCopyZh = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedZh(true);
+    message.success('中文提示词已复制');
+    setTimeout(() => setCopiedZh(false), 2000);
+  };
+
+  const extractPrompts = (raw: string) => {
+    // 去除所有"英文提示词"、"中文提示词"标签
+    let clean = raw.replace(/英文提示词[:：]?/g, '').replace(/中文提示词[:：]?/g, '');
+    // 去除常见中英文标签词
+    const labelPatterns = [
+      /主体描述[:：]?/gi,
+      /场景描述[:：]?/gi,
+      /风格描述[:：]?/gi,
+      /光照效果[:：]?/gi,
+      /构图要素[:：]?/gi,
+      /画面质量[:：]?/gi,
+      /Subject description[:：]?/gi,
+      /Scene description[:：]?/gi,
+      /Style description[:：]?/gi,
+      /Lighting effect[s]?:[:：]?/gi,
+      /Composition elements?[:：]?/gi,
+      /Image quality[:：]?/gi
+    ];
+    labelPatterns.forEach(pattern => {
+      clean = clean.replace(pattern, '');
+    });
+    // 匹配所有英文句子（以英文字母开头的行或逗号分隔的英文）
+    const enMatches = Array.from(clean.matchAll(/([A-Za-z][^\n\u4e00-\u9fa5]*)/g)).map(m => m[1].trim()).filter(Boolean);
+    // 匹配所有中文句子（以中文开头的行或逗号分隔的中文）
+    const zhMatches = Array.from(clean.matchAll(/([\u4e00-\u9fa5][^\nA-Za-z]*)/g)).map(m => m[1].trim()).filter(Boolean);
+    // 统一格式处理函数
+    const format = (arr: string[], isEn = false) => arr.join(', ')
+      .replace(/[、，。；：？！…\n\r]+/g, ', ')
+      .replace(isEn ? /[.]/g : '', ', ') // 英文部分将句号也替换为逗号
+      .replace(/\s+/g, ' ')
+      .replace(/(,\s*)+/g, ', ')
+      .replace(/,\s*\./g, ',') // 去除逗号后跟句号
+      .replace(/^,\s*|,\s*$/g, '');
+    return {
+      en: format(enMatches, true),
+      zh: format(zhMatches)
+    };
   };
 
   return (
@@ -337,70 +365,84 @@ function App() {
           </div>
         )}
 
-        {prompt && (
-          <div className="prompt-container" style={{ 
-            marginTop: '40px',
-            background: theme.background.main,
-            borderRadius: '12px',
-            padding: '24px'
-          }}>
-            <Space direction="vertical" style={{ width: '100%' }}>
-              <div style={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
-                alignItems: 'center',
-                marginBottom: '16px'
-              }}>
-                <Title level={4} style={{ 
-                  margin: 0, 
-                  color: theme.text.primary,
-                  fontWeight: 500
+        {prompt && (() => {
+          const { en, zh } = extractPrompts(prompt);
+          return (
+            <div className="prompt-container" style={{ 
+              marginTop: '40px',
+              background: theme.background.main,
+              borderRadius: '12px',
+              padding: '24px'
+            }}>
+              <Space direction="vertical" style={{ width: '100%' }} size={24}>
+                <div style={{
+                  background: '#e0fbfc',
+                  borderRadius: 8,
+                  padding: 16,
+                  position: 'relative',
+                  border: '1px solid #b2e4f7'
                 }}>
-                  生成的提示词：
-                </Title>
-                <Tooltip title={copied ? "已复制" : "复制提示词"}>
-                  <Button
-                    type="text"
-                    icon={copied ? <CheckOutlined /> : <CopyOutlined />}
-                    onClick={handleCopy}
-                    style={{ 
-                      color: theme.primary,
-                      fontSize: '16px'
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <b style={{ color: theme.text.primary, fontSize: 16 }}>英文提示词</b>
+                    <Tooltip title={copiedEn ? '已复制' : '复制英文提示词'}>
+                      <Button
+                        type="text"
+                        icon={copiedEn ? <CheckOutlined /> : <CopyOutlined />}
+                        onClick={() => handleCopyEn(en)}
+                        style={{ color: theme.primary, fontSize: 16 }}
+                      />
+                    </Tooltip>
+                  </div>
+                  <TextArea
+                    value={en}
+                    autoSize={{ minRows: 3, maxRows: 8 }}
+                    readOnly
+                    style={{
+                      background: '#fff',
+                      border: '1px solid #b2e4f7',
+                      borderRadius: 8,
+                      fontSize: 14,
+                      lineHeight: 1.6,
+                      color: theme.text.primary
                     }}
                   />
-                </Tooltip>
-              </div>
-              {/* 自动分段显示中英文 */}
-              {prompt.split(/英文提示词:|中文提示词:/).filter(Boolean).map((section, idx) => (
-                <TextArea
-                  key={idx}
-                  value={section.trim()}
-                  autoSize={{ minRows: 3, maxRows: 8 }}
-                  readOnly
-                  style={{
-                    background: theme.background.card,
-                    border: `1px solid ${theme.border}`,
-                    borderRadius: '8px',
-                    padding: '16px',
-                    fontSize: '14px',
-                    lineHeight: '1.6',
-                    color: theme.text.primary,
-                    marginBottom: '12px',
-                    transition: 'all 0.3s ease'
-                  }}
-                />
-              ))}
-              <Paragraph type="secondary" style={{ 
-                fontSize: '13px', 
-                marginTop: '12px',
-                color: theme.text.light,
-                textAlign: 'right'
-              }}>
-                提示：已为您生成中英文两版提示词，可直接复制使用。
-              </Paragraph>
-            </Space>
-          </div>
-        )}
+                </div>
+                <div style={{
+                  background: '#e0fbfc',
+                  borderRadius: 8,
+                  padding: 16,
+                  position: 'relative',
+                  border: '1px solid #b2e4f7'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <b style={{ color: theme.text.primary, fontSize: 16 }}>中文提示词</b>
+                    <Tooltip title={copiedZh ? '已复制' : '复制中文提示词'}>
+                      <Button
+                        type="text"
+                        icon={copiedZh ? <CheckOutlined /> : <CopyOutlined />}
+                        onClick={() => handleCopyZh(zh)}
+                        style={{ color: theme.primary, fontSize: 16 }}
+                      />
+                    </Tooltip>
+                  </div>
+                  <TextArea
+                    value={zh}
+                    autoSize={{ minRows: 3, maxRows: 8 }}
+                    readOnly
+                    style={{
+                      background: '#fff',
+                      border: '1px solid #b2e4f7',
+                      borderRadius: 8,
+                      fontSize: 14,
+                      lineHeight: 1.6,
+                      color: theme.text.primary
+                    }}
+                  />
+                </div>
+              </Space>
+            </div>
+          );
+        })()}
       </Card>
     </div>
   );
