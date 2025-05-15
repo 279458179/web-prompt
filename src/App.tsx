@@ -27,7 +27,8 @@ const theme = {
   border: '#E2E8F0'        // 边框颜色
 };
 
-const GEMINI_API_KEY = 'AIzaSyBKiMkI3pwitppnnKorCxpxllUj2zsr-VY';
+// const GEMINI_API_KEY = 'AIzaSyBKiMkI3pwitppnnKorCxpxllUj2zsr-VY';
+const GEMINI_API_KEY = process.env.REACT_APP_GEMINI_API_KEY;
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
 
 function App() {
@@ -98,7 +99,7 @@ function App() {
       const base64Image = await fileToBase64(compressedFile);
 
       // Gemini 多模态API请求
-      const promptText = `你是一个专业的图片分析专家，擅长分析图片并生成能够重现该图片的提示词。请用中英文两种语言输出提示词，且每一项都要有中英文对照。输出格式如下：\n英文提示词: ...\n中文提示词: ...\n请确保生成的提示词包含以下要素：1. 主体描述 2. 场景描述 3. 风格描述 4. 光照效果 5. 构图要素 6. 画面质量。每个要素都要有中英文描述，顺序一致，内容完整，适合直接用于Stable Diffusion等AI绘画。不要输出多余的解释和说明。`;
+      const promptText = `你是一个专业的图片分析专家，擅长分析图片并生成能够重现该图片的提示词。请先输出一段完整的英文提示词，再输出一段完整的中文提示词，不要在每一项前加任何标签。输出格式如下：\n英文提示词: ...\n中文提示词: ...\n请确保生成的提示词包含以下要素：1. 主体描述 2. 场景描述 3. 风格描述 4. 光照效果 5. 构图要素 6. 画面质量。每个要素都要有中英文描述，顺序一致，内容完整，适合直接用于Stable Diffusion等AI绘画。不要输出多余的解释和说明。`;
 
       const response = await axios.post(GEMINI_API_URL, {
         contents: [
@@ -181,8 +182,14 @@ function App() {
   };
 
   const extractPrompts = (raw: string) => {
-    // 去除所有"英文提示词"、"中文提示词"标签
-    let clean = raw.replace(/英文提示词[:：]?/g, '').replace(/中文提示词[:：]?/g, '');
+    // 去除所有"英文提示词"、"中文提示词"标签和语言标签
+    let clean = raw
+      .replace(/英文提示词[:：]?/gi, '')
+      .replace(/中文提示词[:：]?/gi, '')
+      .replace(/English[:：]?/gi, '')
+      .replace(/Chinese[:：]?/gi, '')
+      .replace(/英文[:：]?/gi, '')
+      .replace(/中文[:：]?/gi, '');
     // 去除常见中英文标签词
     const labelPatterns = [
       /主体描述[:：]?/gi,
@@ -201,10 +208,10 @@ function App() {
     labelPatterns.forEach(pattern => {
       clean = clean.replace(pattern, '');
     });
-    // 匹配所有英文句子（以英文字母开头的行或逗号分隔的英文）
-    const enMatches = Array.from(clean.matchAll(/([A-Za-z][^\n\u4e00-\u9fa5]*)/g)).map(m => m[1].trim()).filter(Boolean);
-    // 匹配所有中文句子（以中文开头的行或逗号分隔的中文）
-    const zhMatches = Array.from(clean.matchAll(/([\u4e00-\u9fa5][^\nA-Za-z]*)/g)).map(m => m[1].trim()).filter(Boolean);
+    // 匹配所有英文短语（以字母或数字开头，允许8k、4k等）
+    const enMatches = Array.from(clean.matchAll(/([A-Za-z0-9][^\n\u4e00-\u9fa5]*)/g)).map(m => m[1].trim()).filter(Boolean);
+    // 匹配所有中文短语（以中文或数字开头）
+    const zhMatches = Array.from(clean.matchAll(/([\u4e00-\u9fa50-9][^\nA-Za-z]*)/g)).map(m => m[1].trim()).filter(Boolean);
     // 统一格式处理函数
     const format = (arr: string[], isEn = false) => arr.join(', ')
       .replace(/[、，。；：？！…\n\r]+/g, ', ')
