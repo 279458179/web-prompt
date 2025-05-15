@@ -182,7 +182,7 @@ function App() {
   };
 
   const extractPrompts = (raw: string) => {
-    // 去除所有"英文提示词"、"中文提示词"标签和语言标签
+    // 去除所有标签
     let clean = raw
       .replace(/英文提示词[:：]?/gi, '')
       .replace(/中文提示词[:：]?/gi, '')
@@ -190,7 +190,6 @@ function App() {
       .replace(/Chinese[:：]?/gi, '')
       .replace(/英文[:：]?/gi, '')
       .replace(/中文[:：]?/gi, '');
-    // 去除常见中英文标签词
     const labelPatterns = [
       /主体描述[:：]?/gi,
       /场景描述[:：]?/gi,
@@ -208,18 +207,25 @@ function App() {
     labelPatterns.forEach(pattern => {
       clean = clean.replace(pattern, '');
     });
-    // 匹配所有英文短语（以字母或数字开头，允许8k、4k等）
-    const enMatches = Array.from(clean.matchAll(/([A-Za-z0-9][^\n\u4e00-\u9fa5]*)/g)).map(m => m[1].trim()).filter(Boolean);
-    // 匹配所有中文短语（以中文或数字开头）
-    const zhMatches = Array.from(clean.matchAll(/([\u4e00-\u9fa50-9][^\nA-Za-z]*)/g)).map(m => m[1].trim()).filter(Boolean);
-    // 统一格式处理函数
-    const format = (arr: string[], isEn = false) => arr.join(', ')
+
+    // 匹配所有英文短语（以字母或数字+字母短语开头，允许8k、4k等）
+    const enMatches = Array.from(clean.matchAll(/([A-Za-z][^\n\u4e00-\u9fa5]*)/g)).map(m => m[1].trim()).filter(Boolean);
+    // 匹配所有中文短语（以中文开头）
+    const zhMatches = Array.from(clean.matchAll(/([\u4e00-\u9fa5][^\nA-Za-z]*)/g)).map(m => m[1].trim()).filter(Boolean);
+
+    // 过滤掉所有8k、4k、16k等数字+字母短语，以及单独的k/K
+    const removeNumAlpha = (arr: string[]) => arr.filter(x => !/^\d{1,3}k$/i.test(x) && !/^[kK]$/.test(x));
+    // 过滤掉单独的数字
+    const filterPureNumber = (arr: string[]) => arr.filter(x => !/^\d+$/.test(x));
+
+    const format = (arr: string[], isEn = false) => filterPureNumber(removeNumAlpha(arr)).join(', ')
       .replace(/[、，。；：？！…\n\r]+/g, ', ')
-      .replace(isEn ? /[.]/g : '', ', ') // 英文部分将句号也替换为逗号
+      .replace(isEn ? /[.]/g : '', ', ')
       .replace(/\s+/g, ' ')
       .replace(/(,\s*)+/g, ', ')
-      .replace(/,\s*\./g, ',') // 去除逗号后跟句号
+      .replace(/,\s*\./g, ',')
       .replace(/^,\s*|,\s*$/g, '');
+
     return {
       en: format(enMatches, true),
       zh: format(zhMatches)
